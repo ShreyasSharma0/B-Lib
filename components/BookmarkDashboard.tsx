@@ -46,62 +46,53 @@ export default function BookmarkDashboard({
 
   // Set up realtime subscription
   useEffect(() => {
-    const channel = supabase
-      .channel("bookmarks-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "bookmarks",
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const newBookmark = payload.new as Bookmark;
-          setBookmarks((prev) => {
-            // Avoid duplicates
-            if (prev.find((b) => b.id === newBookmark.id)) return prev;
-            return [newBookmark, ...prev];
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "bookmarks",
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          setBookmarks((prev) => prev.filter((b) => b.id !== payload.old.id));
-        },
-      )
-      
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") setRealtimeStatus("connected");
-        else if (status === "CLOSED") setRealtimeStatus("disconnected");
-        else setRealtimeStatus("connecting");
-      })
-      
-      .subscribe((status) => console.log("bookmarks-realtime status:", status))
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "bookmarks",
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log("realtime payload:", payload);
-        },
-      );
+  if (!user?.id) return;
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user.id, supabase]);
+  const channel = supabase
+    .channel(`bookmarks-realtime:${user.id}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "bookmarks",
+        filter: `user_id=eq.${user.id}`,
+      },
+      (payload) => {
+        console.log("INSERT payload:", payload);
+        const newBookmark = payload.new as Bookmark;
+
+        setBookmarks((prev) => {
+          if (prev.some((b) => b.id === newBookmark.id)) return prev;
+          return [newBookmark, ...prev];
+        });
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "bookmarks",
+        filter: `user_id=eq.${user.id}`,
+      },
+      (payload) => {
+        console.log("DELETE payload:", payload);
+        const old = payload.old as any;
+        setBookmarks((prev) => prev.filter((b) => b.id !== old?.id));
+      }
+    )
+    .subscribe((status) => {
+      console.log("bookmarks-realtime status:", status);
+      if (status === "SUBSCRIBED") setRealtimeStatus("connected");
+      else if (status === "CLOSED") setRealtimeStatus("disconnected");
+      else setRealtimeStatus("connecting");
+    });
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [user?.id]);
 
   const handleAddBookmark = useCallback(
     async (url: string, title: string): Promise<{ error?: string }> => {
