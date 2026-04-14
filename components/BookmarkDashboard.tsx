@@ -38,7 +38,9 @@ export default function BookmarkDashboard({
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks);
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
+  const [realtimeStatus, setRealtimeStatus] = useState<
+    "connecting" | "connected" | "disconnected"
+  >("connecting");
 
   const supabase = createClient();
 
@@ -61,7 +63,7 @@ export default function BookmarkDashboard({
             if (prev.find((b) => b.id === newBookmark.id)) return prev;
             return [newBookmark, ...prev];
           });
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -72,16 +74,29 @@ export default function BookmarkDashboard({
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          setBookmarks((prev) =>
-            prev.filter((b) => b.id !== payload.old.id)
-          );
-        }
+          setBookmarks((prev) => prev.filter((b) => b.id !== payload.old.id));
+        },
       )
+      
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setRealtimeStatus("connected");
         else if (status === "CLOSED") setRealtimeStatus("disconnected");
         else setRealtimeStatus("connecting");
-      });
+      })
+      
+      .subscribe((status) => console.log("bookmarks-realtime status:", status))
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "bookmarks",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log("realtime payload:", payload);
+        },
+      );
 
     return () => {
       supabase.removeChannel(channel);
@@ -114,7 +129,7 @@ export default function BookmarkDashboard({
 
       return {};
     },
-    [supabase, user.id]
+    [supabase, user.id],
   );
 
   const handleDelete = useCallback(
@@ -139,7 +154,7 @@ export default function BookmarkDashboard({
         if (data) setBookmarks(data);
       }
     },
-    [supabase, user.id]
+    [supabase, user.id],
   );
 
   const filteredBookmarks = bookmarks.filter((b) => {
@@ -181,8 +196,19 @@ export default function BookmarkDashboard({
           {bookmarks.length > 0 && (
             <div className="tag-domain">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <circle cx="5" cy="5" r="4" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M5 3v2.5L6.5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <circle
+                  cx="5"
+                  cy="5"
+                  r="4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <path
+                  d="M5 3v2.5L6.5 7"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
               </svg>
               live
             </div>
@@ -196,7 +222,10 @@ export default function BookmarkDashboard({
 
         {/* Search */}
         {bookmarks.length > 2 && (
-          <div className="mt-4 animate-slide-up" style={{ animationDelay: "0.1s" }}>
+          <div
+            className="mt-4 animate-slide-up"
+            style={{ animationDelay: "0.1s" }}
+          >
             <div className="relative">
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400"
@@ -226,7 +255,12 @@ export default function BookmarkDashboard({
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700 transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    <path
+                      d="M2 2l10 10M12 2L2 12"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
                   </svg>
                 </button>
               )}
@@ -274,22 +308,33 @@ function EmptyState() {
   return (
     <div className="text-center py-16 animate-fade-in">
       <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-ink-100 mb-4">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 28 28"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path
             d="M7 3h14a2 2 0 012 2v18l-5-3.75L13 23l-5-3.75L3 23V5a2 2 0 012-2z"
             stroke="#8f7860"
             strokeWidth="1.5"
             strokeLinejoin="round"
           />
-          <path d="M10 9.5h8M10 13h5" stroke="#8f7860" strokeWidth="1.5" strokeLinecap="round"/>
+          <path
+            d="M10 9.5h8M10 13h5"
+            stroke="#8f7860"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
         </svg>
       </div>
       <h3 className="font-display text-lg font-semibold text-ink-800 mb-1">
         Your library is empty
       </h3>
       <p className="text-sm text-ink-500 max-w-xs mx-auto">
-        Start saving URLs above. Your bookmarks are private
-        and sync across all your tabs in real-time.
+        Start saving URLs above. Your bookmarks are private and sync across all
+        your tabs in real-time.
       </p>
     </div>
   );
