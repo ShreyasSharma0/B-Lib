@@ -59,9 +59,8 @@ export default function BookmarkDashboard({
           // remove the filter entirely
         },
         (payload) => {
+          console.log("INSERT payload:", payload);
           const newBookmark = payload.new as Bookmark;
-          // manually filter by user
-          if (newBookmark.user_id !== user.id) return;
           setBookmarks((prev) => {
             if (prev.some((b) => b.id === newBookmark.id)) return prev;
             return [newBookmark, ...prev];
@@ -77,8 +76,8 @@ export default function BookmarkDashboard({
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          console.log("DELETE payload:", payload);
           const old = payload.old as any;
-          if (old?.user_id !== user.id) return;
           setBookmarks((prev) => prev.filter((b) => b.id !== old?.id));
         },
       )
