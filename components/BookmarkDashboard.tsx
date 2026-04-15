@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import type { Bookmark } from "@/types";
@@ -42,26 +42,32 @@ export default function BookmarkDashboard({
     "connecting" | "connected" | "disconnected"
   >("connecting");
 
-  const supabase = createClient();
+  // Memoize supabase client so it's not recreated on every render
+  const supabase = useMemo(() => createClient(), []);
 
   // Set up realtime subscription
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel(`bookmarks-realtime:${user.id}`)
+      .channel(`bookmarks-${user.id}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "bookmarks",
+          // No filter here — filter manually in callback (more reliable)
         },
         (payload) => {
-          console.log("INSERT payload full:", JSON.stringify(payload));
+          console.log("INSERT payload:", payload);
           const newBookmark = payload.new as Bookmark;
-          if (!newBookmark?.id) return; 
+          // Guard against empty payload
+          if (!newBookmark?.id) return;
+          // Only handle bookmarks belonging to this user
+          if (newBookmark.user_id !== user.id) return;
           setBookmarks((prev) => {
+            // Dedup in case optimistic update already added it
             if (prev.some((b) => b.id === newBookmark.id)) return prev;
             return [newBookmark, ...prev];
           });
@@ -73,16 +79,17 @@ export default function BookmarkDashboard({
           event: "DELETE",
           schema: "public",
           table: "bookmarks",
-          filter: `user_id=eq.${user.id}`,
+          // No filter here — old record may not have user_id without REPLICA IDENTITY FULL propagating
         },
         (payload) => {
           console.log("DELETE payload:", payload);
           const old = payload.old as any;
-          setBookmarks((prev) => prev.filter((b) => b.id !== old?.id));
+          if (!old?.id) return;
+          setBookmarks((prev) => prev.filter((b) => b.id !== old.id));
         },
       )
-      .subscribe((status) => {
-        console.log("bookmarks-realtime status:", status);
+      .subscribe((status, err) => {
+        console.log("realtime status:", status, err);
         if (status === "SUBSCRIBED") setRealtimeStatus("connected");
         else if (status === "CLOSED") setRealtimeStatus("disconnected");
         else setRealtimeStatus("connecting");
@@ -91,7 +98,7 @@ export default function BookmarkDashboard({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, supabase]);
 
   const handleAddBookmark = useCallback(
     async (url: string, title: string): Promise<{ error?: string }> => {
@@ -109,7 +116,7 @@ export default function BookmarkDashboard({
         return { error: error.message };
       }
 
-      // Optimistically add (realtime will also fire, handled with dedup)
+      // Optimistically add (realtime will also fire, dedup handles it)
       if (data) {
         setBookmarks((prev) => {
           if (prev.find((b) => b.id === data.id)) return prev;
