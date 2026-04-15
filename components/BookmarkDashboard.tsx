@@ -56,11 +56,11 @@ export default function BookmarkDashboard({
           event: "INSERT",
           schema: "public",
           table: "bookmarks",
-          // remove the filter entirely
         },
         (payload) => {
-          console.log("INSERT payload:", payload);
+          console.log("INSERT payload full:", JSON.stringify(payload));
           const newBookmark = payload.new as Bookmark;
+          if (!newBookmark?.id) return; 
           setBookmarks((prev) => {
             if (prev.some((b) => b.id === newBookmark.id)) return prev;
             return [newBookmark, ...prev];
